@@ -1,85 +1,73 @@
 import streamlit as st
 import google.generativeai as genai
-import time
 
-# --- CẤU HÌNH TRANG ---
+# --- CẤU HÌNH ---
 st.set_page_config(page_title="Mô Phỏng Phiên Tòa", page_icon="⚖️")
 
 with st.sidebar:
     st.header("Cài đặt")
     api_key = st.text_input("Nhập Google API Key", type="password")
-    st.info("Lưu ý: Hãy đảm bảo bạn đã bấm nút ENABLE API trong Google Cloud Console.")
+    if not api_key:
+        st.info("Nhập Key để bắt đầu.")
 
-# --- NỘI DUNG PROMPT ---
+# --- NỘI DUNG ---
 SYSTEM_PROMPT = """
-Đóng vai: AI Luật sư hỗ trợ bị hại Nguyễn Thị Hồng trong vụ án Eximbank.
-Nhiệm vụ: Hỏi từng câu trong ngân hàng câu hỏi. Sau khi user trả lời, hãy phân tích (Đánh giá, Điểm mạnh, Cạm bẫy, Gợi ý).
-Ngân hàng câu hỏi:
-1. Tại sao tin Nhung gửi 5 tỷ?
-2. Có kiểm tra chứng chỉ tiền gửi không?
-3. Việc chuyển tiền hoa hồng thế nào?
-4. Có ai khác ở Eximbank liên hệ không?
-5. Phát hiện bị lừa khi nào?
-6. Quan hệ với Nhung là gì?
-7. Lãi suất cao có nghi ngờ không?
-8. Nói gì khi giới thiệu người thân?
-9. Biết mình giúp sức lừa đảo không?
-10. Có nhận lợi ích gì khác không?
-11. Tổng tiền bị chiếm đoạt?
-12. Có chuyên môn kế toán sao không biết rủi ro?
-13. Có thúc giục người thân không?
-14. Có hưởng lợi từ việc giữ lại tiền không?
-15. Tại sao giao dịch qua trung gian?
-16. Thấy có trách nhiệm không?
-17. Có đòi tiền riêng trước không?
+Bạn là AI Luật sư hỗ trợ bị hại Nguyễn Thị Hồng.
+Hỏi lần lượt từng câu hỏi sau. Sau khi user trả lời, hãy đóng vai Luật sư phân tích (Đánh giá, Điểm mạnh, Cạm bẫy, Gợi ý).
+Câu hỏi 1: Tại sao chị tin tưởng Nhung gửi 5 tỷ?
+Câu hỏi 2: Chị có kiểm tra giấy tờ không?
+Câu hỏi 3: Việc chuyển tiền hoa hồng ra sao?
+Câu hỏi 4: Có ai khác liên hệ không?
+Câu hỏi 5: Phát hiện bị lừa khi nào?
+Câu hỏi 6: Quan hệ với Nhung là gì?
+Câu hỏi 7: Lãi suất cao có nghi ngờ không?
+Câu hỏi 8: Nói gì khi giới thiệu người thân?
+Câu hỏi 9: Biết mình giúp sức lừa đảo không?
+Câu hỏi 10: Có nhận lợi ích khác không?
+Câu hỏi 11: Tổng tiền thiệt hại?
+Câu hỏi 12: Có chuyên môn kế toán sao không biết rủi ro?
+Câu hỏi 13: Có thúc giục người thân không?
+Câu hỏi 14: Có hưởng lợi từ việc giữ lại tiền không?
+Câu hỏi 15: Tại sao giao dịch qua trung gian?
+Câu hỏi 16: Thấy có trách nhiệm không?
+Câu hỏi 17: Có đòi tiền riêng trước không?
 """
 
-st.title("⚖️ Mô Phỏng Phiên Tòa - Vụ Án Eximbank")
+st.title("⚖️ Mô Phỏng Phiên Tòa")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    st.session_state.messages.append({"role": "assistant", "content": "Chào chị Hồng. Tôi là AI Luật sư. Hãy gõ 'Sẵn sàng' để bắt đầu."})
+if "history" not in st.session_state:
+    st.session_state.history = []
+    # Thêm prompt vào ngữ cảnh ngầm
+    st.session_state.history.append({"role": "user", "parts": ["Yêu cầu hệ thống: " + SYSTEM_PROMPT]})
+    st.session_state.history.append({"role": "model", "parts": ["Đã rõ. Tôi sẽ bắt đầu hỏi câu 1."]})
+    # Hiển thị lời chào
+    st.session_state.history.append({"role": "model", "parts": ["Chào chị Hồng. Tôi là AI Luật sư. Chị đã sẵn sàng cho câu hỏi số 1 chưa?"]})
 
-for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
+# Hiển thị chat cũ
+for msg in st.session_state.history[2:]: # Bỏ qua 2 câu lệnh ngầm đầu tiên
+    role = "assistant" if msg["role"] == "model" else "user"
+    st.chat_message(role).write(msg["parts"][0])
 
+# Xử lý chat mới
 if prompt := st.chat_input("Nhập câu trả lời..."):
     if not api_key:
-        st.warning("Vui lòng nhập API Key!")
         st.stop()
 
     st.chat_message("user").write(prompt)
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.history.append({"role": "user", "parts": [prompt]})
 
     try:
         genai.configure(api_key=api_key)
+        # SỬ DỤNG GEMINI PRO (Bản ổn định nhất cho Project mới)
+        model = genai.GenerativeModel("gemini-pro")
         
-        # SỬ DỤNG MODEL CHUẨN NHẤT HIỆN TẠI
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        chat = model.start_chat(history=st.session_state.history)
         
-        # Tạo lịch sử chat để gửi lên Google
-        history = []
-        # Nhồi System Prompt vào đầu lịch sử để "tẩy não" AI
-        history.append({"role": "user", "parts": ["Hệ thống yêu cầu: " + SYSTEM_PROMPT]})
-        history.append({"role": "model", "parts": ["Đã rõ. Tôi sẽ đóng vai Luật sư mô phỏng."]})
-        
-        # Thêm các tin nhắn cũ
-        for msg in st.session_state.messages:
-            if msg["role"] == "user":
-                history.append({"role": "user", "parts": [msg["content"]]})
-            else:
-                history.append({"role": "model", "parts": [msg["content"]]})
-
-        # Xóa tin nhắn cuối cùng vừa append (vì nó sẽ được gửi trong lệnh generate)
-        history.pop() 
-
-        chat = model.start_chat(history=history)
-        
-        with st.spinner('Luật sư đang phân tích...'):
+        with st.spinner('Luật sư đang soạn thảo...'):
             response = chat.send_message(prompt)
             st.chat_message("assistant").write(response.text)
-            st.session_state.messages.append({"role": "assistant", "content": response.text})
+            
+        st.session_state.history.append({"role": "model", "parts": [response.text]})
 
     except Exception as e:
-        st.error(f"Lỗi kết nối: {e}")
-        st.warning("👉 Hãy kiểm tra: Bạn đã bấm nút ENABLE trong Google Cloud Console chưa?")
+        st.error(f"Lỗi: {e}")
