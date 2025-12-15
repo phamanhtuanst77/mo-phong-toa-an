@@ -1,5 +1,6 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
+import json
 
 # --- CẤU HÌNH ---
 st.set_page_config(page_title="Mô Phỏng Phiên Tòa", page_icon="⚖️")
@@ -8,66 +9,77 @@ with st.sidebar:
     st.header("Cài đặt")
     api_key = st.text_input("Nhập Google API Key", type="password")
     if not api_key:
-        st.info("Nhập Key để bắt đầu.")
+        st.warning("⚠️ Hãy nhập Key lấy từ Google Cloud.")
 
 # --- NỘI DUNG ---
 SYSTEM_PROMPT = """
 Bạn là AI Luật sư hỗ trợ bị hại Nguyễn Thị Hồng.
-Hỏi lần lượt từng câu hỏi sau. Sau khi user trả lời, hãy đóng vai Luật sư phân tích (Đánh giá, Điểm mạnh, Cạm bẫy, Gợi ý).
-Câu hỏi 1: Tại sao chị tin tưởng Nhung gửi 5 tỷ?
-Câu hỏi 2: Chị có kiểm tra giấy tờ không?
-Câu hỏi 3: Việc chuyển tiền hoa hồng ra sao?
-Câu hỏi 4: Có ai khác liên hệ không?
-Câu hỏi 5: Phát hiện bị lừa khi nào?
-Câu hỏi 6: Quan hệ với Nhung là gì?
-Câu hỏi 7: Lãi suất cao có nghi ngờ không?
-Câu hỏi 8: Nói gì khi giới thiệu người thân?
-Câu hỏi 9: Biết mình giúp sức lừa đảo không?
-Câu hỏi 10: Có nhận lợi ích khác không?
-Câu hỏi 11: Tổng tiền thiệt hại?
-Câu hỏi 12: Có chuyên môn kế toán sao không biết rủi ro?
-Câu hỏi 13: Có thúc giục người thân không?
-Câu hỏi 14: Có hưởng lợi từ việc giữ lại tiền không?
-Câu hỏi 15: Tại sao giao dịch qua trung gian?
-Câu hỏi 16: Thấy có trách nhiệm không?
-Câu hỏi 17: Có đòi tiền riêng trước không?
+Nhiệm vụ: Hỏi lần lượt 17 câu hỏi trong ngân hàng câu hỏi.
+Quy tắc:
+1. Đưa ra câu hỏi.
+2. Chờ user trả lời.
+3. Sau khi user trả lời, đóng vai Luật sư phân tích (Đánh giá, Điểm mạnh, Cạm bẫy, Gợi ý) rồi mới hỏi câu tiếp theo.
 """
 
-st.title("⚖️ Mô Phỏng Phiên Tòa")
+st.title("⚖️ Mô Phỏng Phiên Tòa - Kết Nối Trực Tiếp")
 
-if "history" not in st.session_state:
-    st.session_state.history = []
-    # Thêm prompt vào ngữ cảnh ngầm
-    st.session_state.history.append({"role": "user", "parts": ["Yêu cầu hệ thống: " + SYSTEM_PROMPT]})
-    st.session_state.history.append({"role": "model", "parts": ["Đã rõ. Tôi sẽ bắt đầu hỏi câu 1."]})
-    # Hiển thị lời chào
-    st.session_state.history.append({"role": "model", "parts": ["Chào chị Hồng. Tôi là AI Luật sư. Chị đã sẵn sàng cho câu hỏi số 1 chưa?"]})
+# Khởi tạo lịch sử
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+    st.session_state.messages.append({"role": "assistant", "content": "Chào chị Hồng. Tôi là AI Luật sư. Hãy gõ 'Sẵn sàng' để bắt đầu."})
 
-# Hiển thị chat cũ
-for msg in st.session_state.history[2:]: # Bỏ qua 2 câu lệnh ngầm đầu tiên
-    role = "assistant" if msg["role"] == "model" else "user"
-    st.chat_message(role).write(msg["parts"][0])
+# Hiển thị chat
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
 
-# Xử lý chat mới
+# Xử lý nhập liệu
 if prompt := st.chat_input("Nhập câu trả lời..."):
     if not api_key:
         st.stop()
 
+    # Hiển thị câu user
     st.chat_message("user").write(prompt)
-    st.session_state.history.append({"role": "user", "parts": [prompt]})
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
+    # --- KẾT NỐI TRỰC TIẾP (KHÔNG QUA THƯ VIỆN TRUNG GIAN) ---
     try:
-        genai.configure(api_key=api_key)
-        # SỬ DỤNG GEMINI PRO (Bản ổn định nhất cho Project mới)
-        model = genai.GenerativeModel("gemini-pro")
+        # Chuẩn bị URL cho model Gemini 1.5 Flash
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
         
-        chat = model.start_chat(history=st.session_state.history)
+        # Chuẩn bị nội dung gửi đi (Ghép toàn bộ lịch sử để AI nhớ)
+        contents = []
+        # Thêm System Prompt vào đầu
+        contents.append({"role": "user", "parts": [{"text": "Yêu cầu hệ thống: " + SYSTEM_PROMPT}]})
+        contents.append({"role": "model", "parts": [{"text": "Đã rõ."}]})
         
-        with st.spinner('Luật sư đang soạn thảo...'):
-            response = chat.send_message(prompt)
-            st.chat_message("assistant").write(response.text)
+        # Thêm lịch sử chat
+        for msg in st.session_state.messages:
+            role = "user" if msg["role"] == "user" else "model"
+            contents.append({"role": role, "parts": [{"text": msg["content"]}]})
             
-        st.session_state.history.append({"role": "model", "parts": [response.text]})
+        payload = {
+            "contents": contents,
+            "generationConfig": {"temperature": 0.7}
+        }
+        headers = {'Content-Type': 'application/json'}
+
+        with st.spinner('Luật sư đang suy nghĩ...'):
+            # Gửi lệnh POST trực tiếp
+            response = requests.post(url, headers=headers, json=payload)
+            
+            # Kiểm tra kết quả
+            if response.status_code == 200:
+                result = response.json()
+                try:
+                    ai_text = result['candidates'][0]['content']['parts'][0]['text']
+                    st.chat_message("assistant").write(ai_text)
+                    st.session_state.messages.append({"role": "assistant", "content": ai_text})
+                except:
+                    st.error("AI không trả lời đúng định dạng. Hãy thử lại.")
+            else:
+                # Nếu lỗi, in nguyên văn lỗi từ Google để biết chính xác lý do
+                error_msg = response.json().get('error', {}).get('message', 'Lỗi không xác định')
+                st.error(f"❌ Lỗi từ Google (Mã {response.status_code}): {error_msg}")
 
     except Exception as e:
-        st.error(f"Lỗi: {e}")
+        st.error(f"Lỗi kết nối: {e}")
