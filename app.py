@@ -9,66 +9,82 @@ with st.sidebar:
     api_key = st.text_input("Nhập Google API Key", type="password")
     st.caption("Lấy Key tại: aistudio.google.com")
     st.divider()
-    st.info("App hỗ trợ bị hại luyện tập đối chất.")
+    st.info("App mô phỏng phiên tòa Eximbank.")
 
 # --- NỘI DUNG PROMPT ---
 SYSTEM_PROMPT = """
-Bạn là một ứng dụng AI có tên "Mô Phỏng Đối Chất Tại Tòa". Nhiệm vụ của bạn là giúp bị hại Nguyễn Thị Hồng luyện tập trả lời câu hỏi tại tòa.
-Bối cảnh: Hồng bị Vũ Thị Thu Nhung (Eximbank) lừa 5 tỷ, cũng là người giới thiệu người thân nên sợ bị coi là đồng phạm. 
-Nhiệm vụ: Hỏi từng câu trong ngân hàng câu hỏi. Sau khi Hồng trả lời, hãy đóng vai Luật sư phân tích: Đánh giá, Điểm mạnh, Cạm bẫy, Gợi ý tối ưu và Lưu ý chiến lược.
-Ngân hàng câu hỏi: 
-1. Tại sao chị tin Nhung gửi 5 tỷ và giới thiệu người thân?
-2. Chị có kiểm tra chứng chỉ tiền gửi không?
-3. Việc nhận/chuyển tiền hoa hồng diễn ra thế nào?
-4. Có ai khác ở Eximbank làm việc với chị không?
-5. Chị phát hiện bị lừa khi nào?
-6. Quan hệ chị và Nhung là gì?
-7. Lãi suất cao bất thường chị có nghi ngờ không?
-8. Chị nói gì khi giới thiệu người thân?
-9. Chị có biết mình tạo điều kiện cho Nhung lừa thêm người không?
-10. Chị có nhận lợi ích gì khác ngoài hoa hồng không?
-11. Tổng số tiền bị chiếm đoạt yêu cầu bồi thường là bao nhiêu?
-12. Chị có chuyên môn kế toán sao không nhận ra rủi ro?
-13. Chị thúc giục người thân tham gia để lấy hoa hồng đúng không?
-14. Chị giữ lại tiền, chị là người hưởng lợi đúng không?
-15. Tại sao giao dịch phải qua chị mà không trực tiếp với Nhung?
-16. Chị thấy mình có trách nhiệm gì khi người thân mất tiền không?
-17. Chị có đòi tiền riêng trước khi báo công an không?
+Đóng vai: Ứng dụng AI tên "Mô Phỏng Đối Chất Tại Tòa", giúp bị hại Nguyễn Thị Hồng luyện tập.
+Bối cảnh: Hồng bị Vũ Thị Thu Nhung (Eximbank) lừa 5 tỷ.
+Nhiệm vụ: Hỏi từng câu trong ngân hàng câu hỏi. Người dùng trả lời xong thì đóng vai Luật sư phân tích (Đánh giá, Điểm mạnh, Cạm bẫy, Gợi ý).
+Ngân hàng câu hỏi (Hỏi lần lượt từng câu):
+1. Tại sao tin Nhung gửi 5 tỷ?
+2. Có kiểm tra chứng chỉ tiền gửi không?
+3. Việc chuyển tiền hoa hồng thế nào?
+4. Có ai khác ở Eximbank liên hệ không?
+5. Phát hiện bị lừa khi nào?
+6. Quan hệ với Nhung là gì?
+7. Lãi suất cao có nghi ngờ không?
+8. Nói gì khi giới thiệu người thân?
+9. Biết mình giúp sức lừa đảo không?
+10. Có nhận lợi ích gì khác không?
+11. Tổng tiền bị chiếm đoạt?
+12. Có chuyên môn kế toán sao không biết rủi ro?
+13. Có thúc giục người thân không?
+14. Có hưởng lợi từ việc giữ lại tiền không?
+15. Tại sao giao dịch qua trung gian?
+16. Thấy có trách nhiệm không?
+17. Có đòi tiền riêng trước không?
 """
 
 # --- GIAO DIỆN CHÍNH ---
 st.title("⚖️ Mô Phỏng Đối Chất Tại Tòa - Vụ Án Eximbank")
 
+# Khởi tạo lịch sử chat
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    st.session_state.messages.append({"role": "model", "content": "Chào chị Hồng. Tôi là AI Luật sư. Chị đã sẵn sàng cho câu hỏi đầu tiên chưa? Hãy gõ 'Sẵn sàng' để bắt đầu."})
+    # Câu chào mở đầu
+    st.session_state.messages.append({"role": "model", "content": "Chào chị Hồng. Tôi là AI Luật sư. Hãy gõ 'Sẵn sàng' để bắt đầu câu hỏi số 1."})
 
+# Hiển thị lịch sử
 for message in st.session_state.messages:
-    with st.chat_message("user" if message["role"] == "user" else "assistant"):
+    role = "user" if message["role"] == "user" else "assistant"
+    with st.chat_message(role):
         st.markdown(message["content"])
 
+# Xử lý nhập liệu
 if prompt := st.chat_input("Nhập câu trả lời..."):
     if not api_key:
-        st.warning("Vui lòng nhập API Key!")
+        st.warning("Vui lòng nhập API Key ở menu bên trái!")
         st.stop()
 
+    # Hiện câu trả lời người dùng
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # GỌI GOOGLE AI
     try:
         genai.configure(api_key=api_key)
-        # Sửa lỗi: Chuyển Prompt vào nội dung chat thay vì system_instruction để tránh lỗi 404
-        model = genai.GenerativeModel("gemini-1.5-flash")
         
-        full_prompt = f"Hệ thống: {SYSTEM_PROMPT}\n\nNgười dùng: {prompt}"
+        # --- SỬA ĐỔI QUAN TRỌNG: Dùng gemini-pro ---
+        model = genai.GenerativeModel("gemini-pro")
         
-        with st.spinner('Đang phân tích...'):
+        # Ghép prompt thủ công để tránh lỗi hệ thống
+        chat_history_text = ""
+        for msg in st.session_state.messages:
+            role_str = "AI" if msg["role"] == "model" else "User"
+            chat_history_text += f"{role_str}: {msg['content']}\n"
+            
+        full_prompt = f"{SYSTEM_PROMPT}\n\nLịch sử chat:\n{chat_history_text}\n\nUser trả lời mới nhất: {prompt}\n\nAI hãy phản hồi:"
+        
+        with st.spinner('Luật sư đang phân tích...'):
             response = model.generate_content(full_prompt)
         
+        # Hiện phản hồi AI
         with st.chat_message("assistant"):
             st.markdown(response.text)
+        
         st.session_state.messages.append({"role": "model", "content": response.text})
 
     except Exception as e:
-        st.error(f"Đã xảy ra lỗi: {str(e)}")
+        st.error(f"Lỗi: {e}")
