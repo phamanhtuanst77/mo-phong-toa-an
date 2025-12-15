@@ -10,7 +10,7 @@ with st.sidebar:
     if not api_key:
         st.warning("👉 Lấy Key miễn phí tại: console.groq.com")
     else:
-        st.success("Đã nhập Key!")
+        st.success("Đã nhập Key! Sẵn sàng kết nối.")
 
 # --- NỘI DUNG PROMPT ---
 SYSTEM_PROMPT = """
@@ -43,7 +43,7 @@ if prompt := st.chat_input("Nhập câu trả lời..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     try:
-        # KẾT NỐI GROQ (Siêu nhanh & Miễn phí)
+        # KẾT NỐI GROQ
         client = Groq(api_key=api_key)
         
         # Chuẩn bị lịch sử chat
@@ -53,7 +53,8 @@ if prompt := st.chat_input("Nhập câu trả lời..."):
 
         with st.spinner('Luật sư đang phân tích...'):
             completion = client.chat.completions.create(
-                model="llama3-8b-8192", # Model miễn phí, mạnh mẽ
+                # --- ĐÃ CẬP NHẬT TÊN MODEL MỚI NHẤT TẠI ĐÂY ---
+                model="llama-3.3-70b-versatile", 
                 messages=chat_history,
                 temperature=0.7,
                 max_tokens=2048,
@@ -65,4 +66,5 @@ if prompt := st.chat_input("Nhập câu trả lời..."):
             st.session_state.messages.append({"role": "assistant", "content": ai_text})
 
     except Exception as e:
+        # Hiện lỗi chi tiết nếu có
         st.error(f"Lỗi kết nối: {e}")
