@@ -1,22 +1,20 @@
 import streamlit as st
 import google.generativeai as genai
+import time
 
 # --- CẤU HÌNH TRANG ---
 st.set_page_config(page_title="Mô Phỏng Phiên Tòa", page_icon="⚖️")
 
 with st.sidebar:
-    st.title("Cài đặt")
+    st.header("Cài đặt")
     api_key = st.text_input("Nhập Google API Key", type="password")
-    st.caption("Lấy Key tại: aistudio.google.com")
-    st.divider()
-    st.info("App mô phỏng phiên tòa Eximbank.")
+    st.info("Lưu ý: Hãy đảm bảo bạn đã bấm nút ENABLE API trong Google Cloud Console.")
 
 # --- NỘI DUNG PROMPT ---
 SYSTEM_PROMPT = """
-Đóng vai: Ứng dụng AI tên "Mô Phỏng Đối Chất Tại Tòa", giúp bị hại Nguyễn Thị Hồng luyện tập.
-Bối cảnh: Hồng bị Vũ Thị Thu Nhung (Eximbank) lừa 5 tỷ.
-Nhiệm vụ: Hỏi từng câu trong ngân hàng câu hỏi. Người dùng trả lời xong thì đóng vai Luật sư phân tích (Đánh giá, Điểm mạnh, Cạm bẫy, Gợi ý).
-Ngân hàng câu hỏi (Hỏi lần lượt từng câu):
+Đóng vai: AI Luật sư hỗ trợ bị hại Nguyễn Thị Hồng trong vụ án Eximbank.
+Nhiệm vụ: Hỏi từng câu trong ngân hàng câu hỏi. Sau khi user trả lời, hãy phân tích (Đánh giá, Điểm mạnh, Cạm bẫy, Gợi ý).
+Ngân hàng câu hỏi:
 1. Tại sao tin Nhung gửi 5 tỷ?
 2. Có kiểm tra chứng chỉ tiền gửi không?
 3. Việc chuyển tiền hoa hồng thế nào?
@@ -36,55 +34,52 @@ Ngân hàng câu hỏi (Hỏi lần lượt từng câu):
 17. Có đòi tiền riêng trước không?
 """
 
-# --- GIAO DIỆN CHÍNH ---
-st.title("⚖️ Mô Phỏng Đối Chất Tại Tòa - Vụ Án Eximbank")
+st.title("⚖️ Mô Phỏng Phiên Tòa - Vụ Án Eximbank")
 
-# Khởi tạo lịch sử chat
 if "messages" not in st.session_state:
     st.session_state.messages = []
-    # Câu chào mở đầu
-    st.session_state.messages.append({"role": "model", "content": "Chào chị Hồng. Tôi là AI Luật sư. Hãy gõ 'Sẵn sàng' để bắt đầu câu hỏi số 1."})
+    st.session_state.messages.append({"role": "assistant", "content": "Chào chị Hồng. Tôi là AI Luật sư. Hãy gõ 'Sẵn sàng' để bắt đầu."})
 
-# Hiển thị lịch sử
-for message in st.session_state.messages:
-    role = "user" if message["role"] == "user" else "assistant"
-    with st.chat_message(role):
-        st.markdown(message["content"])
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
 
-# Xử lý nhập liệu
 if prompt := st.chat_input("Nhập câu trả lời..."):
     if not api_key:
-        st.warning("Vui lòng nhập API Key ở menu bên trái!")
+        st.warning("Vui lòng nhập API Key!")
         st.stop()
 
-    # Hiện câu trả lời người dùng
+    st.chat_message("user").write(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
 
-    # GỌI GOOGLE AI
     try:
         genai.configure(api_key=api_key)
         
-        # --- SỬA ĐỔI QUAN TRỌNG: Dùng gemini-pro ---
-        model = genai.GenerativeModel("gemini-pro")
+        # SỬ DỤNG MODEL CHUẨN NHẤT HIỆN TẠI
+        model = genai.GenerativeModel("gemini-1.5-flash")
         
-        # Ghép prompt thủ công để tránh lỗi hệ thống
-        chat_history_text = ""
+        # Tạo lịch sử chat để gửi lên Google
+        history = []
+        # Nhồi System Prompt vào đầu lịch sử để "tẩy não" AI
+        history.append({"role": "user", "parts": ["Hệ thống yêu cầu: " + SYSTEM_PROMPT]})
+        history.append({"role": "model", "parts": ["Đã rõ. Tôi sẽ đóng vai Luật sư mô phỏng."]})
+        
+        # Thêm các tin nhắn cũ
         for msg in st.session_state.messages:
-            role_str = "AI" if msg["role"] == "model" else "User"
-            chat_history_text += f"{role_str}: {msg['content']}\n"
-            
-        full_prompt = f"{SYSTEM_PROMPT}\n\nLịch sử chat:\n{chat_history_text}\n\nUser trả lời mới nhất: {prompt}\n\nAI hãy phản hồi:"
+            if msg["role"] == "user":
+                history.append({"role": "user", "parts": [msg["content"]]})
+            else:
+                history.append({"role": "model", "parts": [msg["content"]]})
+
+        # Xóa tin nhắn cuối cùng vừa append (vì nó sẽ được gửi trong lệnh generate)
+        history.pop() 
+
+        chat = model.start_chat(history=history)
         
         with st.spinner('Luật sư đang phân tích...'):
-            response = model.generate_content(full_prompt)
-        
-        # Hiện phản hồi AI
-        with st.chat_message("assistant"):
-            st.markdown(response.text)
-        
-        st.session_state.messages.append({"role": "model", "content": response.text})
+            response = chat.send_message(prompt)
+            st.chat_message("assistant").write(response.text)
+            st.session_state.messages.append({"role": "assistant", "content": response.text})
 
     except Exception as e:
-        st.error(f"Lỗi: {e}")
+        st.error(f"Lỗi kết nối: {e}")
+        st.warning("👉 Hãy kiểm tra: Bạn đã bấm nút ENABLE trong Google Cloud Console chưa?")
