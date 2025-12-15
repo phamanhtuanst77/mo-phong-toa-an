@@ -76,7 +76,7 @@ if prompt := st.chat_input("Nhập câu trả lời của chị..."):
 
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=SYSTEM_PROMPT)
+        model = genai.GenerativeModel("gemini-pro", system_instruction=SYSTEM_PROMPT)
         
         chat_history = []
         for msg in st.session_state.messages[:-1]:
